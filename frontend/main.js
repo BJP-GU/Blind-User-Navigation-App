@@ -5,19 +5,10 @@ const authSection = document.getElementById("auth-section");
 const appSection = document.getElementById("app-section");
 const sessionEndSection = document.getElementById("session-end-section");
 const restartBtn = document.getElementById("restartBtn");
-const micBtn = document.getElementById("micBtn");
-const cameraBtn = document.getElementById("cameraBtn");
-const screenBtn = document.getElementById("screenBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
-const textInput = document.getElementById("textInput");
-const sendBtn = document.getElementById("sendBtn");
 const videoPreview = document.getElementById("video-preview");
 const videoPlaceholder = document.getElementById("video-placeholder");
 const connectBtn = document.getElementById("connectBtn");
-const chatLog = document.getElementById("chat-log");
-
-let currentGeminiMessageDiv = null;
-let currentUserMessageDiv = null;
 let lastError = null;
 let wasConnected = false;
 
@@ -38,7 +29,6 @@ const geminiClient = new GeminiClient({
             geminiClient.send(data);
           }
         });
-        micBtn.textContent = "Stop Mic";
       } catch (e) {
         console.error("Could not auto-start microphone:", e);
       }
@@ -49,7 +39,6 @@ const geminiClient = new GeminiClient({
             geminiClient.sendImage(base64Data);
           }
         });
-        cameraBtn.textContent = "Stop Camera";
         videoPlaceholder.classList.add("hidden");
       } catch (e) {
         console.error("Could not auto-start camera:", e);
@@ -100,42 +89,13 @@ function handleJsonMessage(msg) {
   if (msg.type === "error") {
     const detail = msg.error || "Unknown error";
     lastError = detail;
-    appendMessage("gemini", "[Error] " + detail);
     statusDiv.textContent = "Error";
     statusDiv.className = "status error";
     return;
   }
   if (msg.type === "interrupted") {
     mediaHandler.stopAudioPlayback();
-    currentGeminiMessageDiv = null;
-    currentUserMessageDiv = null;
-  } else if (msg.type === "turn_complete") {
-    currentGeminiMessageDiv = null;
-    currentUserMessageDiv = null;
-  } else if (msg.type === "user") {
-    if (currentUserMessageDiv) {
-      currentUserMessageDiv.textContent += msg.text;
-      chatLog.scrollTop = chatLog.scrollHeight;
-    } else {
-      currentUserMessageDiv = appendMessage("user", msg.text);
-    }
-  } else if (msg.type === "gemini") {
-    if (currentGeminiMessageDiv) {
-      currentGeminiMessageDiv.textContent += msg.text;
-      chatLog.scrollTop = chatLog.scrollHeight;
-    } else {
-      currentGeminiMessageDiv = appendMessage("gemini", msg.text);
-    }
   }
-}
-
-function appendMessage(type, text) {
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `message ${type}`;
-  msgDiv.textContent = text;
-  chatLog.appendChild(msgDiv);
-  chatLog.scrollTop = chatLog.scrollHeight;
-  return msgDiv;
 }
 
 // Connect Button Handler
@@ -161,102 +121,6 @@ disconnectBtn.onclick = () => {
   geminiClient.disconnect();
 };
 
-micBtn.onclick = async () => {
-  if (mediaHandler.isRecording) {
-    mediaHandler.stopAudio();
-    micBtn.textContent = "Start Mic";
-  } else {
-    try {
-      await mediaHandler.startAudio((data) => {
-        if (geminiClient.isConnected()) {
-          geminiClient.send(data);
-        }
-      });
-      micBtn.textContent = "Stop Mic";
-    } catch (e) {
-      alert("Could not start audio capture");
-    }
-  }
-};
-
-cameraBtn.onclick = async () => {
-  if (cameraBtn.textContent === "Stop Camera") {
-    mediaHandler.stopVideo(videoPreview);
-    cameraBtn.textContent = "Start Camera";
-    screenBtn.textContent = "Share Screen";
-    videoPlaceholder.classList.remove("hidden");
-  } else {
-    // If another stream is active (e.g. Screen), stop it first
-    if (mediaHandler.videoStream) {
-      mediaHandler.stopVideo(videoPreview);
-      screenBtn.textContent = "Share Screen";
-    }
-
-    try {
-      await mediaHandler.startVideo(videoPreview, (base64Data) => {
-        if (geminiClient.isConnected()) {
-          geminiClient.sendImage(base64Data);
-        }
-      });
-      cameraBtn.textContent = "Stop Camera";
-      screenBtn.textContent = "Share Screen";
-      videoPlaceholder.classList.add("hidden");
-    } catch (e) {
-      alert("Could not access camera");
-    }
-  }
-};
-
-screenBtn.onclick = async () => {
-  if (screenBtn.textContent === "Stop Sharing") {
-    mediaHandler.stopVideo(videoPreview);
-    screenBtn.textContent = "Share Screen";
-    cameraBtn.textContent = "Start Camera";
-    videoPlaceholder.classList.remove("hidden");
-  } else {
-    // If another stream is active (e.g. Camera), stop it first
-    if (mediaHandler.videoStream) {
-      mediaHandler.stopVideo(videoPreview);
-      cameraBtn.textContent = "Start Camera";
-    }
-
-    try {
-      await mediaHandler.startScreen(
-        videoPreview,
-        (base64Data) => {
-          if (geminiClient.isConnected()) {
-            geminiClient.sendImage(base64Data);
-          }
-        },
-        () => {
-          // onEnded callback (e.g. user stopped sharing from browser)
-          screenBtn.textContent = "Share Screen";
-          videoPlaceholder.classList.remove("hidden");
-        }
-      );
-      screenBtn.textContent = "Stop Sharing";
-      cameraBtn.textContent = "Start Camera";
-      videoPlaceholder.classList.add("hidden");
-    } catch (e) {
-      alert("Could not share screen");
-    }
-  }
-};
-
-sendBtn.onclick = sendText;
-textInput.onkeypress = (e) => {
-  if (e.key === "Enter") sendText();
-};
-
-function sendText() {
-  const text = textInput.value;
-  if (text && geminiClient.isConnected()) {
-    geminiClient.sendText(text);
-    appendMessage("user", text);
-    textInput.value = "";
-  }
-}
-
 function resetUI() {
   authSection.classList.remove("hidden");
   appSection.classList.add("hidden");
@@ -272,10 +136,6 @@ function resetUI() {
   mediaHandler.stopVideo(videoPreview);
   videoPlaceholder.classList.remove("hidden");
 
-  micBtn.textContent = "Start Mic";
-  cameraBtn.textContent = "Start Camera";
-  screenBtn.textContent = "Share Screen";
-  chatLog.innerHTML = "";
   connectBtn.disabled = false;
 }
 

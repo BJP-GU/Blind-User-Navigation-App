@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini Live API Demo</title>
+    <title>Object Detection System</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
     <div class="container">
       <header>
-        <h1>Gemini Live API Demo</h1>
+        <h1>Object Detection System</h1>
         <div style="display: flex; gap: 10px; align-items: center">
           <div id="status" class="status disconnected">Disconnected</div>
         </div>
@@ -17,39 +17,14 @@
 
       <main>
         <div class="auth-section" id="auth-section">
-          <div
-            class="description-box"
-            style="
-              margin-bottom: 20px;
-              padding: 15px;
-              background: #f5f5f5;
-              border-radius: 8px;
-              text-align: left;
-            "
+          <button
+            id="connectBtn"
+            class="btn btn-start"
+            type="button"
+            aria-label="Start Object Detection System"
           >
-            <h3>Features Enabled:</h3>
-            <ul style="margin: 10px 0 20px 20px">
-              <li>
-                <strong>Native Audio:</strong> Low latency voice interaction
-              </li>
-              <li>
-                <strong>Multilingual:</strong> Speak in different languages
-              </li>
-              <li>
-                <strong>Proactive Audio:</strong> Gemini can initiate speech
-                based on instructions E.g. "Only talk when I mention food"
-              </li>
-              <li><strong>Affective Audio:</strong> Emotional tone matching</li>
-            </ul>
-            <p>
-              <em
-                >Note: When you connect, the app sends a text message to Gemini
-                instructing it to introduce itself and these features.</em
-              >
-            </p>
-          </div>
-          <p>Click below to connect.</p>
-          <button id="connectBtn" class="btn">Connect</button>
+            Start Object Detection System
+          </button>
         </div>
 
         <div class="session-end-section hidden" id="session-end-section">
@@ -58,39 +33,20 @@
         </div>
 
         <div class="app-section hidden" id="app-section">
-          <div class="app-grid">
-            <div class="left-panel">
-              <div class="video-container">
-                <div id="video-placeholder">Start camera to send video</div>
-                <video id="video-preview" autoplay playsinline muted></video>
-                <canvas id="video-canvas" style="display: none"></canvas>
-              </div>
+          <div class="video-container">
+            <div id="video-placeholder">Start camera to send video</div>
+            <video id="video-preview" autoplay playsinline muted></video>
+            <canvas id="video-canvas" style="display: none"></canvas>
+          </div>
 
-              <div class="controls">
-                <button id="micBtn" class="btn icon-btn">Start Mic</button>
-                <button id="cameraBtn" class="btn icon-btn">
-                  Start Camera
-                </button>
-                <button id="screenBtn" class="btn icon-btn">
-                  Share Screen
-                </button>
-                <button id="disconnectBtn" class="btn icon-btn danger">
-                  Disconnect
-                </button>
-              </div>
-            </div>
-
-            <div class="right-panel">
-              <div class="chat-log" id="chat-log"></div>
-              <div class="input-area">
-                <input
-                  type="text"
-                  id="textInput"
-                  placeholder="Type a message..."
-                />
-                <button id="sendBtn" class="btn">Send</button>
-              </div>
-            </div>
+          <div class="controls controls--app">
+            <button
+              id="disconnectBtn"
+              class="btn icon-btn danger btn-disconnect"
+              type="button"
+            >
+              Disconnect
+            </button>
           </div>
         </div>
       </main>
