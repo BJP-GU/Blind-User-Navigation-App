@@ -38,30 +38,19 @@ class GeminiLive:
                     )
                 )
             ),
-          system_instruction=types.Content(
-    parts=[
-        types.Part(
-            text="""
-You are testing a live camera feed. Your speech is transcribed into the user's chat — keep each utterance short and focused.
+            system_instruction=types.Content(
+                parts=[
+                    types.Part(
+                        text="""
+You are the voice for a live multimodal demo (Gemini Live): voice, optional camera, and optional screen share.
 
-PRIMARY TASK (TESTING MODE):
+When the user turns on the camera or shares their screen, use the video frames you receive. Describe what you see when it helps the conversation, and react briefly to meaningful changes in the scene. When they only use the microphone or typed text, have a natural spoken dialogue.
 
-1. Whenever something NEW enters the frame or newly becomes clearly visible, announce it in audio immediately. Treat each distinct new appearance as its own announcement (do not merge multiple new items into one long sentence when you can speak them one after another).
-2. If you can tell what it is, say what it is and roughly where (e.g. "Cup entering on the right", "Person ahead").
-3. If you cannot identify it, say exactly this phrase and nothing else for that item: "new object in frame"
-
-RULES:
-
-- Prefer calling out arrivals and changes over repeating the whole scene.
-- Do not stay silent for long while the camera is moving or new content is appearing — keep up with new things as frames update.
-- Still interrupt with an urgent warning if something implies immediate danger (then return to the new-object callouts).
-- If nothing new has appeared for a while and the view is stable, you may stay quiet or give one brief "no change" style line; do not spam identical lines.
-
-Keep a calm, clear tone. Short phrases only.
+Keep spoken replies concise and conversational. Your speech is transcribed into the user's chat.
 """
-        )
-    ]
-),
+                    )
+                ]
+            ),
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             proactivity=types.ProactivityConfig(proactive_audio=True),
@@ -70,14 +59,17 @@ Keep a calm, clear tone. Short phrases only.
         )
         
         async with self.client.aio.live.connect(model=self.model, config=config) as session:
-            
+            # The Live session uses one WebSocket; concurrent sends corrupt frames and drop the session.
+            send_lock = asyncio.Lock()
+
             async def send_audio():
                 try:
                     while True:
                         chunk = await audio_input_queue.get()
-                        await session.send_realtime_input(
-                            audio=types.Blob(data=chunk, mime_type=f"audio/pcm;rate={self.input_sample_rate}")
-                        )
+                        async with send_lock:
+                            await session.send_realtime_input(
+                                audio=types.Blob(data=chunk, mime_type=f"audio/pcm;rate={self.input_sample_rate}")
+                            )
                 except asyncio.CancelledError:
                     pass
 
@@ -86,9 +78,10 @@ Keep a calm, clear tone. Short phrases only.
                     while True:
                         chunk = await video_input_queue.get()
                         logger.info(f"Sending video frame to Gemini: {len(chunk)} bytes")
-                        await session.send_realtime_input(
-                            video=types.Blob(data=chunk, mime_type="image/jpeg")
-                        )
+                        async with send_lock:
+                            await session.send_realtime_input(
+                                video=types.Blob(data=chunk, mime_type="image/jpeg")
+                            )
                 except asyncio.CancelledError:
                     pass
 
@@ -97,7 +90,8 @@ Keep a calm, clear tone. Short phrases only.
                     while True:
                         text = await text_input_queue.get()
                         logger.info(f"Sending text to Gemini: {text}")
-                        await session.send_realtime_input(text=text)
+                        async with send_lock:
+                            await session.send_realtime_input(text=text)
                 except asyncio.CancelledError:
                     pass
 
@@ -113,7 +107,7 @@ Keep a calm, clear tone. Short phrases only.
                             
                             if server_content:
                                 if server_content.model_turn:
-                                    for part in server_content.model_turn.parts:
+                                    for part in server_content.model_turn.parts or []:
                                         if part.inline_data:
                                             print("AUDIO CHUNK RECEIVED:", len(part.inline_data.data))
                                             if inspect.iscoroutinefunction(audio_output_callback):
@@ -140,7 +134,7 @@ Keep a calm, clear tone. Short phrases only.
 
                             if tool_call:
                                 function_responses = []
-                                for fc in tool_call.function_calls:
+                                for fc in tool_call.function_calls or []:
                                     func_name = fc.name
                                     args = fc.args or {}
                                     
@@ -162,7 +156,8 @@ Keep a calm, clear tone. Short phrases only.
                                         ))
                                         await event_queue.put({"type": "tool_call", "name": func_name, "args": args, "result": result})
                                 
-                                await session.send_tool_response(function_responses=function_responses)
+                                async with send_lock:
+                                    await session.send_tool_response(function_responses=function_responses)
 
                 except Exception as e:
                     await event_queue.put({"type": "error", "error": str(e)})

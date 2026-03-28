@@ -18,22 +18,49 @@ const chatLog = document.getElementById("chat-log");
 
 let currentGeminiMessageDiv = null;
 let currentUserMessageDiv = null;
+let lastError = null;
+let wasConnected = false;
 
 const mediaHandler = new MediaHandler();
 const geminiClient = new GeminiClient({
   onOpen: () => {
+    wasConnected = true;
     statusDiv.textContent = "Connected";
     statusDiv.className = "status connected";
     authSection.classList.add("hidden");
     appSection.classList.remove("hidden");
+    lastError = null;
 
-    // Send hidden instruction
+    (async () => {
+      try {
+        await mediaHandler.startAudio((data) => {
+          if (geminiClient.isConnected()) {
+            geminiClient.send(data);
+          }
+        });
+        micBtn.textContent = "Stop Mic";
+      } catch (e) {
+        console.error("Could not auto-start microphone:", e);
+      }
+
+      try {
+        await mediaHandler.startVideo(videoPreview, (base64Data) => {
+          if (geminiClient.isConnected()) {
+            geminiClient.sendImage(base64Data);
+          }
+        });
+        cameraBtn.textContent = "Stop Camera";
+        videoPlaceholder.classList.add("hidden");
+      } catch (e) {
+        console.error("Could not auto-start camera:", e);
+      }
+    })();
+
     geminiClient.sendText(
-      `System: Introduce yourself as a demo of the Gemini Live API.
-       Suggest playing with features like the native audio for accents, multilingual support,
-        proactive audio by asking you not to speak until I say something specific,
-        or the affective audio capabilities by changing the emotion in your voice to
-        match the tone of the conversation. Keep the intro concise and friendly.`
+      `System: As your initial message, say exactly:
+"Hello! I'll help you navigate to your vehicle using your phones camera. I'll communicate using voice to indicate when an object is detected in your path.
+
+Hold your phone at chest level and such that the back camera is facing directly infront of your path."`
     );
   },
   onMessage: (event) => {
@@ -50,18 +77,34 @@ const geminiClient = new GeminiClient({
   },
   onClose: (e) => {
     console.log("WS Closed:", e);
-    statusDiv.textContent = "Disconnected";
-    statusDiv.className = "status disconnected";
-    showSessionEnd();
+    if (wasConnected) {
+      statusDiv.textContent = "Disconnected";
+      statusDiv.className = "status disconnected";
+      showSessionEnd();
+    } else {
+      statusDiv.textContent = "Could not connect to server";
+      statusDiv.className = "status error";
+      connectBtn.disabled = false;
+    }
+    wasConnected = false;
   },
   onError: (e) => {
     console.error("WS Error:", e);
-    statusDiv.textContent = "Connection Error";
-    statusDiv.className = "status error";
+    if (!wasConnected) {
+      lastError = "Could not connect to server. Is the backend running?";
+    }
   },
 });
 
 function handleJsonMessage(msg) {
+  if (msg.type === "error") {
+    const detail = msg.error || "Unknown error";
+    lastError = detail;
+    appendMessage("gemini", "[Error] " + detail);
+    statusDiv.textContent = "Error";
+    statusDiv.className = "status error";
+    return;
+  }
   if (msg.type === "interrupted") {
     mediaHandler.stopAudioPlayback();
     currentGeminiMessageDiv = null;
@@ -219,6 +262,12 @@ function resetUI() {
   appSection.classList.add("hidden");
   sessionEndSection.classList.add("hidden");
 
+  lastError = null;
+  const errorDetail = sessionEndSection.querySelector(".error-detail");
+  if (errorDetail) errorDetail.remove();
+  const heading = sessionEndSection.querySelector("h2");
+  if (heading) heading.textContent = "Session Ended";
+
   mediaHandler.stopAudio();
   mediaHandler.stopVideo(videoPreview);
   videoPlaceholder.classList.remove("hidden");
@@ -231,8 +280,28 @@ function resetUI() {
 }
 
 function showSessionEnd() {
+  authSection.classList.add("hidden");
   appSection.classList.add("hidden");
   sessionEndSection.classList.remove("hidden");
+
+  const heading = sessionEndSection.querySelector("h2");
+  let errorDetail = sessionEndSection.querySelector(".error-detail");
+
+  if (lastError) {
+    heading.textContent = "Session Error";
+    if (!errorDetail) {
+      errorDetail = document.createElement("p");
+      errorDetail.className = "error-detail";
+      errorDetail.style.cssText =
+        "color: #c62828; background: #ffebee; padding: 12px; border-radius: 6px; margin: 10px 0; word-break: break-word;";
+      heading.after(errorDetail);
+    }
+    errorDetail.textContent = lastError;
+  } else {
+    heading.textContent = "Session Ended";
+    if (errorDetail) errorDetail.remove();
+  }
+
   mediaHandler.stopAudio();
   mediaHandler.stopVideo(videoPreview);
 }

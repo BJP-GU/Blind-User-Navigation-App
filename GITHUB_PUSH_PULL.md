@@ -4,6 +4,9 @@ This project is intended to track the remote repository:
 
 **https://github.com/BJP-GU/Blind-User-Navigation-App.git**
 
+**Local project path (this machine):**  
+`/Users/bryceparsons/Desktop/DET/gemini-live-genai-python-sdk`
+
 ---
 
 ## Pull (get updates from GitHub)
@@ -11,7 +14,7 @@ This project is intended to track the remote repository:
 From your project directory (the folder that contains `.git`):
 
 ```bash
-cd /path/to/your/local/Blind-User-Navigation-App
+cd /Users/bryceparsons/Desktop/DET/gemini-live-genai-python-sdk
 git pull origin main
 ```
 
@@ -43,6 +46,7 @@ git commit -m "Resolve merge conflicts after pull"
 ### 1. Pull latest from GitHub
 
 ```bash
+cd /Users/bryceparsons/Desktop/DET/gemini-live-genai-python-sdk
 git pull origin main
 ```
 
@@ -94,6 +98,8 @@ git push origin main
 git clone https://github.com/BJP-GU/Blind-User-Navigation-App.git
 cd Blind-User-Navigation-App
 ```
+
+That creates a folder named `Blind-User-Navigation-App`. Your current working copy uses the folder name `gemini-live-genai-python-sdk` at the path above; both are fine as long as `git remote -v` points at this GitHub repo.
 
 ### Existing folder: point `origin` at this repo
 

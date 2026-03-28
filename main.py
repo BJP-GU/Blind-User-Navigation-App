@@ -49,6 +49,17 @@ async def websocket_endpoint(websocket: WebSocket):
 
     logger.info("WebSocket connection accepted")
 
+    if not GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not set")
+        await websocket.send_json(
+            {
+                "type": "error",
+                "error": "Server misconfiguration: GEMINI_API_KEY is not set. Add it to your .env file.",
+            }
+        )
+        await websocket.close(code=4000)
+        return
+
     audio_input_queue = asyncio.Queue()
     video_input_queue = asyncio.Queue()
     text_input_queue = asyncio.Queue()
@@ -72,18 +83,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 if message.get("bytes"):
                     await audio_input_queue.put(message["bytes"])
                 elif message.get("text"):
-                    text = message["text"]
+                    raw_text = message["text"]
                     try:
-                        payload = json.loads(text)
+                        payload = json.loads(raw_text)
                         if isinstance(payload, dict) and payload.get("type") == "image":
-                            logger.info(f"Received image chunk from client: {len(payload['data'])} base64 chars")
+                            logger.info(
+                                f"Received image chunk from client: {len(payload['data'])} base64 chars"
+                            )
                             image_data = base64.b64decode(payload["data"])
                             await video_input_queue.put(image_data)
+                            continue
+                        if isinstance(payload, dict) and "text" in payload:
+                            await text_input_queue.put(payload["text"])
                             continue
                     except json.JSONDecodeError:
                         pass
 
-                    await text_input_queue.put(text)
+                    await text_input_queue.put(raw_text)
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected")
         except Exception as e:
@@ -107,9 +123,12 @@ async def websocket_endpoint(websocket: WebSocket):
         await run_session()
     except Exception as e:
         logger.error(f"Error in Gemini session: {e}")
+        try:
+            await websocket.send_json({"type": "error", "error": str(e)})
+        except Exception:
+            pass
     finally:
         receive_task.cancel()
-        # Ensure websocket is closed if not already
         try:
             await websocket.close()
         except:
